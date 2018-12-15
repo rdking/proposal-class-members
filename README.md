@@ -92,6 +92,7 @@ class X {
   prop f = Math.E;        //Prototype-based public data property
   inst g = Math.PI;       //Instance-based public data property, set semantics
   inst h := Math.random();//Instance-based public data property, define semantics
+  static i = Math.sqrt(2);//Static public data property
 
   constructor(a, f) {
     this::a = a;          //If your private member variable gets shadowed,
@@ -106,16 +107,22 @@ class X {
   print() {
     //Class-private member access
     console.log(`this.constructor::b = ${this.constructor::b}`);
-    console.log(`X::b = ${X::b}`);
+    
+    this.constructor::printStatic();
 
     //You can iterate through private members!
-    for (let key in ['a', 'c', 'd', 'e']) {
+    for (let key of ['a', 'c', 'd', 'e']) {
       console.log(`this::${key} = ${this::[key]}`);
     }
     //No private members in this loop at all.
-    for (let key in Object.keys(this)) {
+    for (let key of Object.keys(this)) {
       console.log(`this.${key} = ${this[key]}`);
     }
+  }
+
+  let static printStatic = () => {
+    console.log(`X::b = ${b}`);
+    console.log(`X.i = ${i}`);
   }
 }
 ```
@@ -177,7 +184,7 @@ const X = (function() {
   
     print() {
       console.log(`this.constructor::b = ${getPrivateValue(this.constructor, 'b')}`);
-      console.log(`X::b = ${getPrivateValue(X, 'b')}`);
+      getPrivateValue(this.constructor, "printStatic")();
 
       for (let key in ['a', 'c', 'd', 'e']) {
         console.log(`this::${key} = ${getPrivateValue(this, key)}`);
@@ -186,6 +193,11 @@ const X = (function() {
       for (let key in Object.keys(this)) {
         console.log(`this.${key} = ${this[key]}`);
       }
+    }
+
+    let static printStatic = () => {
+      console.log(`X::b = ${getPrivateValue(this, 'b')}`);
+      console.log(`X.i = ${this.i})`);
     }
   }
 
