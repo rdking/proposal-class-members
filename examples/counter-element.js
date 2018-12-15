@@ -2,12 +2,12 @@ class Counter extends HTMLElement {
   let x = 0;
 
   let clicked = () => {
-    this::x++;
+    x++;
     window.requestAnimationFrame(() => render());
   }
 
   let render = () => {
-    this.textContent = this::x.toString();
+    this.textContent = x.toString();
   }
 
   onclick = () => clicked();

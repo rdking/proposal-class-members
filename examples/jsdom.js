@@ -10,18 +10,18 @@ export class JSDOM {
   }
 
   static async fromURL(url, options = {}) {
-    JSDOM::normalizeFromURLOptions(options);
-    JSDOM::normalizeOptions(options);
+    normalizeFromURLOptions(options);
+    normalizeOptions(options);
 
     const body = await getBodyFromURL(url);
-    return JSDOM::finalizeFactoryCreated(new JSDOM(body, options), "fromURL");
+    return finalizeFactoryCreated(new JSDOM(body, options), "fromURL");
   }
 
   static fromFile(filename, options = {}) {
-    JSDOM::normalizeOptions(options);
+    normalizeOptions(options);
 
     const body = await getBodyFromFilename(filename);
-    return JSDOM::finalizeFactoryCreated(new JSDOM(body, options), "fromFile");
+    return finalizeFactoryCreated(new JSDOM(body, options), "fromFile");
   }
 
   let static finalizeFactoryCreated = (jsdom, factoryName) => {

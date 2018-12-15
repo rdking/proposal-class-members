@@ -1,20 +1,20 @@
 export class EventStream {
-  let listeners, onError, observable;
+  let listeners, onError, _observable;
 
   let subscribe = (listener) => {
-    this::listeners.push(listener);
+    listeners.push(listener);
     return () => {
-      let index = this::listeners.indexOf(listener);
+      let index = listeners.indexOf(listener);
       if (index >= 0) {
-        this::listeners.splice(index, 1);
+        listeners.splice(index, 1);
       }
     };
   }
 
   constructor(opts = {}) {
-    this::listeners = [];
-    this::onError = opts.onError || defaultOnError;
-    this::observable = new Observable(x => this::subscribe(x));
+    listeners = [];
+    onError = opts.onError || defaultOnError;
+    _observable = new Observable(x => subscribe(x));
   }
 
   /**
@@ -23,16 +23,16 @@ export class EventStream {
    * variable. Can be re-spelled as `return this::observable;` for clarity.
    */
   get observable() {
-    return this::observable;
+    return _observable;
   }
 
   push(event, detail = null) {
     if (typeof event === 'string') {
       event = { type: event, detail };
     }
-    this::listeners.forEach(listener => {
+    listeners.forEach(listener => {
       try { listener.next(event) }
-      catch (e) { this::onError(e, event) }
+      catch (e) { onError(e, event) }
     });
   }
 
