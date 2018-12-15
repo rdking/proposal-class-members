@@ -85,7 +85,7 @@ Just as the closure of a function provides for lexically scoped variables, the p
 ```js
 class X {
   let a;                  //Private data member, initialized to undefined
-  let b = {};             //Private data member, initialized to an object
+  let static b = {};      //Class-private data member, initialized to an object
   let c = () => {};       //Private member function, bound to this
   let d = function() {};  //Private member function, unbound
   const e = 0;            //Private constant member, initialize to 0
@@ -103,8 +103,13 @@ class X {
     f = other.f;
   }
 
-  print() {               //You can iterate through private members!
-    for (let key in ['a', 'b', 'c', 'd', 'e']) {
+  print() {
+    //Class-private member access
+    console.log(`this.constructor::b = ${this.constructor::b}`);
+    console.log(`X::b = ${X::b}`);
+
+    //You can iterate through private members!
+    for (let key in ['a', 'c', 'd', 'e']) {
       console.log(`this::${key} = ${this::[key]}`);
     }
     //No private members in this loop at all.
@@ -131,10 +136,6 @@ const X = (function() {
       a: {
         writable: true,
         value: void 0
-      },
-      b: {
-        writable: true,
-        value: {}
       },
       c: {
         writable: true,
@@ -175,7 +176,10 @@ const X = (function() {
     }
   
     print() {
-      for (let key in ['a', 'b', 'c', 'd', 'e']) {
+      console.log(`this.constructor::b = ${getPrivateValue(this.constructor, 'b')}`);
+      console.log(`X::b = ${getPrivateValue(X, 'b')}`);
+
+      for (let key in ['a', 'c', 'd', 'e']) {
         console.log(`this::${key} = ${getPrivateValue(this, key)}`);
       }
 
@@ -186,6 +190,13 @@ const X = (function() {
   }
 
   X.prototype.f = Math.E;
+  pvt.set(X, Object.seal(Object.create(null, {
+    b: {
+      writable: true,
+      value: {}
+    }
+  })));
+  Object.defineProperty(X, "b")
 
   return X;
 })();
