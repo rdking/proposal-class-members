@@ -88,6 +88,7 @@ Just as the closure of a function provides for lexically scoped variables, the p
     * If the private member's name is in a variable, you can use `obj::[variable]` to access it.
 
 #### Example
+##### New Syntax Version
 ```js
 class X {
   let a;                  //Private data member, initialized to undefined
@@ -119,6 +120,82 @@ class X {
     }
   }
 }
+```
+##### Sugar-free Version
+```js
+const X = (function() {
+  let pvt = new WeakMap();
+
+  function privateInit() {
+    this.g = Math.PI;
+    Object.defineProperty(this, "h", {
+      enumerable: true,
+      writable: true,
+      configurable: true,
+      value: Math.random()
+    });
+    return Object.seal(Object.create(null, {
+      a: {
+        writable: true,
+        value: void 0
+      },
+      b: {
+        writable: true,
+        value: {}
+      },
+      c: {
+        writable: true,
+        value: () => {}
+      },
+      d: {
+        writable: true,
+        value: function() {}
+      },
+      e: { value: 0 }
+    }));
+  }
+
+  function getPrivateValue(obj, field) {
+    'use strict';
+    if (!pvt.has(obj)) throw new ReferenceError("Closure not found");
+    let p = pvt.get(obj);
+    return p[field];
+  }
+
+  function setPrivateValue(obj, field, value) {
+    'use strict';
+    if (!pvt.has(obj)) throw new ReferenceError("Closure not found");
+    let p = pvt.get(obj);
+    p[field] = value;
+  }
+  
+  class X {
+    constructor(a, f) {
+      pvt.set(this, privateInit.call(this));
+      setPrivateValue(this, "a", a);
+      this.f = f;
+    }
+  
+    copy(other) {
+      setPrivateValue(this, "a", getPrivateValue(other, "a"));
+      f = other.f;
+    }
+  
+    print() {
+      for (let key in ['a', 'b', 'c', 'd', 'e']) {
+        console.log(`this::${key} = ${getPrivateValue(this, key)}`);
+      }
+
+      for (let key in Object.keys(this)) {
+        console.log(`this.${key} = ${this[key]}`);
+      }
+    }
+  }
+
+  X.prototype.f = Math.E;
+
+  return X;
+})();
 ```
 
 ## Links
