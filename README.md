@@ -6,7 +6,8 @@ This is a fork of the rejected js-classes-1.1 proposal aimed to pick up developm
 This is a new proposal for extending ECMAScript's class definition syntax and semantics. It is intended to be a replacement for the  set of proposals currently under development within TC39. For the motivation behind developing a new proposal, see *[why a new proposal](docs/motivation.md)*.
 
 ## Philosophy
-Elements of a `class` definition should only appear on direct products of the `class` keyword. This means that if it's not on the prototype, on the constructor, or (as of this proposal) part of the closure definition, it's not a member of the `class` definition, and therefore, not a member of the class. A class "member" is therefore anything defined or produced within the lexical scope of the `class` definition and represented in on of the products of `class`.
+
+Elements of a `class` definition should only appear on direct products of the `class` keyword. This means that if it's not on the prototype, on the constructor, or (as of this proposal) in the instance-closure, it's not a part of the `class` definition, and therefore, not a member of the class. A class "member" is therefore anything defined or produced within the lexical scope of the `class` definition and represented in or on one of the products of `class`.
 
 ## Goals
 
@@ -16,101 +17,117 @@ The max-min class design, as implemented in ECMAScript 2015, has successfully ba
 2. **Secure method decomposition.** There should be a way for the user to refactor common code into methods that are not accessible outside of the class definition.
 3. **Customized data initialization.** There should be a way to initialize the class prototype, for instance by adding arbitrary data properties, within the class definition.
 
-## Overview
+## Mental Model
 
-This proposal adds the concept of an instance closure to ECMAScript class definitions. Much as with calling a function, creation of a new instance also triggers the creation of an instance closure. Declarations in the `class` definition beginning with `let` or `const` are directly executed inside the closure during this creation process. These closed-over instance-variables become the hidden instance-state of the new instance. 
+The only thing in ES that is capable of providing the 3 goals above is a closure. However, it is virtually impossible to use a closure to provide for per-instance state without the use of one or more WeakMaps. This proposal offers an approach to applying the closure concept on class definitions to contain private data.
 
-There are four kinds hidden class members:
+Normally, when a function returns another function defined during the run of the former, the entire execution environment of the former function is retained as a "closure" on the latter. With this proposal, a `class` definition behaves in a similar fashion to a function. Where a function closure is formed by running a function that returns 1 or more functions, an instance-closure is formed by instantiating a `class`. Likewise, a class-closure is created by evaluating a `class` definition.
 
-### Instance Variables
+As a result, the member functions of the `class` instance all carry a closure associated with that instance and class. The instance-closure is associated with all non-static member functions at the time of instantiation. The class-closure is associated with all non-static member functions at the time of `class` evaluation. Unlike with normal closures, all member functions of a given `class` have access to all instance-closures of and the class-closure for the given `class`.
 
-An instance variable definition defines one or more hidden variables that exist as part of the state of each instance of a class. Within a class body, instance variables are accessed via the `::` operator. Instance variables are declared with the `let` keyword.
-
+So basically, we've been able to do this:
 ```js
-class Point {
-  // Instance variable definition
-  let x, y;
+function X(v) {
+  if (!new.target) throw new TypeError(`Constructor X requires new`);
+  let x = v;
+  this.print() {
+    console.log(`x = ${x}`);
+  };
+}
+```
+Now we'll be able to do this:
+```js
+class X {
+  let x;
+  constructor(v) {
+    x = v;
+  }
+  print() {
+    console.log(`x = ${v}`);
+  }
+}
+```
+...and reasonably expect that where with the `function X`:
+```js
+var a = new X(2);
+var b = new X(3);
+a.print(); //3;
+b.print(); //3;
+```
+... instead with `class X`
+```js
+var a = new X(2);
+var b = new X(3);
+a.print(); //2;
+b.print(); //3;
+```
+because each instance gets it's own closure.
 
-  constructor(x, y) {
-    // Instance variables are accessed
-    // with the "::" operator
-    this::x = x;
-    this::y = y;
+Just as the closure of a function provides for lexically scoped variables, the public and private members of the instance become available as lexically scope variables, as if the "with" keyword had automatically been applied at the beginning of the function. It's possible for locally scoped variable to shadow these property-variables. However, the properties are always available via `obj.member` for public members and `obj::member` for private members. Equivalent array notation is also available via `obj['member']` and `obj::['member']`, respectively.
+
+## Overview
+* To declare a private data member, use `let`.
+* To declare a constant private data member, use `const`.
+    * All constants must be initialized.
+* To declare a public data property, use `prop`.
+    * This is a prototype data property. Beware the object value foot-gun.
+* To declare a public instance data property, use `inst`.
+    * This is an instance-specific value. Beware clobbering inheritance.
+    * All public instance data properties must be initialized.
+    * It is suggested that if at all, this feature be used sparingly, and with great care.
+    * It is strongly suggested that such values be defined in the constructor.
+* All data properties can be initialized using operator `=`.
+* A new operator (`:=`) is defined for use with `inst` properties.
+    * This new operator forces the property to be defined on the instance.
+    * Use of operator `=` with `inst` attempts to set the initializer on the instance.
+* There is no unique form for defining private member functions.
+    * Private member functions are created by declaring a private data member initialized with a function defined within the lexical scope of the class.
+* The initializer of all private data members and public instance data members are resolved at the time of `class` instantiation.
+    * All other data member initializers are resolved at the time of `class` evaluation.
+* A new operator (`::`) is defined for accessing private members.
+    * If the private member's name is in a variable, you can use `obj::[variable]` to access it.
+
+#### Example
+```js
+class X {
+  let a;                  //Private data member, initialized to undefined
+  let b = {};             //Private data member, initialized to an object
+  let c = () => {};       //Private member function, bound to this
+  let d = function() {};  //Private member function, unbound
+  const e = 0;            //Private constant member, initialize to 0
+  prop f = Math.E;        //Prototype-based public data property
+  inst g = Math.PI;       //Instance-based public data property, set semantics
+  inst h := Math.random();//Instance-based public data property, define semantics
+
+  constructor(a, f) {
+    this::a = a;          //If your private member variable gets shadowed,
+    this.f = f;           //just use the property notation
+  }
+
+  copy(other) {
+    a = other::a;         //Access to members on siblings always uses property notation
+    f = other.f;
+  }
+
+  print() {               //You can iterate through private members!
+    for (let key in ['a', 'b', 'c', 'd', 'e']) {
+      console.log(`this::${key} = ${this::[key]}`);
+    }
+    //No private members in this loop at all.
+    for (let key in Object.keys(this)) {
+      console.log(`this.${key} = ${this[key]}`);
+    }
   }
 }
 ```
 
-Instance variable names are lexically scoped and visible to everything (including nested functions and class definitions) contained in a class body.
+## Links
 
-Attempting to access an instance variable using `::` produces a runtime `ReferenceError` if the left operand is not an object posessing an instance or class closure whose closure signature is attached to the function object of the current execution context. In other words, a reference to an instance variable only works when the object is a normally constructed instance of this class or one of its subclasses.
-
-Instance variable definitions may have initializers. The absense of an initializer is equivalent to being initialized with `undefined`. The value of a property initializer is determined at the time the `class` definition is parsed. Instance-specific property value assignments can only be performed in the constructor. The value of non-property initializers is determined during the creation of the instance or class closure. Their initializers are always instance-specific.
-
-### Instance Constants
-
-An instance constant is defined using the `const` keyword. As constants, they must have an initializer. Beyond these 2 points, everything that is true for instance variables is also true for instance constants.
-
-### Class Variables & Constants
-
-For each of the 2 kinds above, there is a static equivalent. Hidden static members are defined by placing the `static` keyword as the 2<sup>nd</sup> term of the definition.
-
-```js
-class A {
-  const static field1 = Symbol('field1');
-  let static field2;
-  ...
-}
-```
-
-Hidden static members are placed in a separate closure attached to the constructor function. Such members can be accessed via the `::` operator with the constructor function itself as the target object.
-
-### Hidden Methods
-
-No direct syntax support will be available for creating hidden methods. However, since a variable can hold anything, a function expression is a valid initializer. If the function expression is an arrow function, it automatically inherits the context object of the instance-closure. Otherwise, the function will operate in accordance with the existing rules for all nested functions declared using the `function` keyword.
-
-### Public Data Properties
-
-A public data property is declared in exactly the same fashion as an instance variable, but without the `let` prefix. Public data properties are placed on the prototype and initialized with undefined if no initializer is given, or the value of the initializer at the time the `class` definition is evaluated. Likewise, static public data properties can be created by prefixing a public data property with the `static` keyword.
-
-```js
-class A {
-  prop3 = 42;
-  static prop4;
-  ...
-}
-```
-
-### Instance & Class Closures
-
-The `class` keyword will, depending on the definition, produce up to 2 more products. Should the definition contain hidden static members, a class closure containing these definitions will be produced, executed, and attached to the constructor function object. Should the definition contain hidden non-static members, an instance closure definition will be produced and attached to the constructor function object.
-
-Upon instantiation of the class, immediately following the attaching of the prototype to the new instance, the instance closure definition will be executed and the resulting instance closure will be attached to the new instance.
-
-When a function is called with a class instance object (having an attached instance closure) as its context, the closure signature of the function is compared with the closure signature of the class instance object's instance closure prior to the generation of the called function's local scope. If the signatures match, the instance closure is added to the scope chain of the function call. This allows the variables in the instance closure to be used directly.
-
-### Closure Signatures
-
-When a `class` definition is evaluated, if an instance closure definition is created, a closure signature is created for and attached to that definition. This closure signature will be applied to every closure created from that definition. This signature is also attached to every member function declared by the `class` definition, including the default constructor. If a class closure is created, a closure signature is likewise create for and attached to it, as well as every member function declared by the `class` definition. This signature is used to make hidden member access verification as quick as possible.
-
-### Additional Notes
-
-It is an early error if left hand argument (LHA) of a `::` operator is not an object with an attached instance closure.
-
-It is an early error if the right hand argument (RHA) of a `::` operator is not the lexically visible name of a hidden method or instance variable.
-
-It is an early error if the closure signature on the instance closure of the LHA of a `::` operator does not match a closure signature of the current execution context.
-
-It is an early error if duplicate hidden names are defined within a single class definition and the names do not reference a get/set accessor pair.
-
-Reflection is not supported on instance variables, instance variable names, hidden methods, or hidden method names.
-
-Lexically scoped instance variable declarations and hidden method definitions introduce new names into a parallel scope. Hidden names do not shadow non-hidden names.
-
-### More
-
+- [Implementation Overview](docs/implementation-overview.md)
 - [Code examples](https://github.com/rdking/proposal-class-members/tree/master/examples)
 - [Definitions & Technical Notes](docs/definitions.md)
 - [Assumptions and constraints](docs/assumptions-and-constraints.md)
 - [A refactoring example](docs/refactoring.md)
 - [Why not fields?](docs/why-not-fields.md)
 - [Specification text](https://rdking.github.io/proposal-class-members/)
+- [Private Symbols Specification](https://github.com/zenparsing/proposal-private-symbols)
