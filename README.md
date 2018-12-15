@@ -47,14 +47,7 @@ class X {
   }
 }
 ```
-...and reasonably expect that where with the `function X`:
-```js
-var a = new X(2);
-var b = new X(3);
-a.print(); //3;
-b.print(); //3;
-```
-... instead with `class X`
+...and reasonably expect that regardless of which one we use:
 ```js
 var a = new X(2);
 var b = new X(3);
