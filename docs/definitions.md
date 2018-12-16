@@ -73,7 +73,7 @@
 - Public data members are declared via a distinct class body element (a `prop` definition). This is to prevent ASI issues due to combinations of destructuring assignment and calculated property names.
 - Public data members are properties of the prototype.
 - Public data members may not be initialized with a function expression in the class definition.
-- The names of all non-Symbol public data members will be available in the lexical scope of all non-static member functions.
+- The names of all non-Symbol public data members will be available in the lexical scope of all non-static member functions. This includes the names of inherited public data members.
 - The initializer of a public data member is resolved at the time of `class` evaluation.
 
 ## Public Instance Data Members

@@ -35,34 +35,34 @@ window.customElements.define('num-counter', Counter);
 
 ## 1. Instance Variables
 
-As the first step in our refactoring process, we will update the class definition so that internal state is stored in an *instance variable*. We add an instance variable declaration to the class using the `let` keyword and update references to this value via direct access or using the "scope access operator" `::`.
+As the first step in our refactoring process, we will update the class definition so that internal state is stored in an *private data member*. We add a private data member to the class using the `let` keyword and update references to this value via direct access or using the "scope access operator" `::`.
 
 ```js
 class Counter extends HTMLElement {
   let xValue;
 
-  get x() { return this::xValue; }
+  get x() { return xValue; }
 
   set x(value) {
-    this::xValue = value;
-    window.requestAnimationFrame(this.render.bind(this));
+    xValue = value;
+    window.requestAnimationFrame(render.bind(this));
   }
 
   clicked() {
-    this.x++;
-    window.requestAnimationFrame(this.render.bind(this));
+    x++;
+    window.requestAnimationFrame(render.bind(this));
   }
 
   constructor() {
     super();
-    this.onclick = this.clicked.bind(this);
-    this::xValue = 0;
+    onclick = clicked.bind(this);
+    xValue = 0;
   }
 
-  connectedCallback() { this.render(); }
+  connectedCallback() { render(); }
 
   render() {
-    this.textContent = this.x.toString();
+    textContent = x.toString();
   }
 }
 window.customElements.define('num-counter', Counter);
@@ -70,26 +70,25 @@ window.customElements.define('num-counter', Counter);
 
 ## 2. Internal Methods
 
-Finally, we will convert our internal helper methods into instance variable and assign the function to them using arrow function notation. Since instance variables are not properties, we'll have to convert our getter/setter pair into a simple function.
+Finally, we will convert our internal helper methods into private data members and assign the function to them using arrow function notation. This saves us from needing to bind the function to the current instance. Since `window.requestAnimationFrame` is called whenever `xValue` is incremented, we can convert our getter/setter pair into a private member function.
 
 ```js
 class Counter extends HTMLElement {
   let xValue = 0;
 
   let incX = () => {
-    ++this::xValue;
-    window.requestAnimationFrame(render.bind(this));
+    ++xValue;
+    window.requestAnimationFrame(render);
   }
 
   let clicked = () => {
     incX();
-    window.requestAnimationFrame(render.bind(this));
   }
 
   connectedCallback() { render(); }
 
   let render = () => {
-    this.textContent = this::xValue.toString();
+    textContent = xValue.toString();
   }
 }
 window.customElements.define('num-counter', Counter);
