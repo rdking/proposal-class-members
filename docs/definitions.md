@@ -13,9 +13,8 @@
 
 ## Class Members
 
-- A class member is an element of the set of all definitions lexically scoped witin a class definition.
+- A class member is an element of the set of all declarations lexically scoped witin a class definition.
 - All class members become part of one of the products of a class definition: constructor, prototype, instance closures.
-- Class members which become part of an instance closure are not properties of the class or its instances.
 
 ## Operator `::`
 
@@ -27,40 +26,74 @@
 - Instance & class closures are execution scopes containing the non-property declarations in a class definition.
 - Instance closures contain non-static members and are attached to their target object immediately prior to the instance object becomming available as the context object of the constructor function.
 - Class closures contain static members and are attached to the constructor during the evaluation of the class definition.
-- Class closures are only generated if the set of members to include is not empty.
+- Both instance and class closures are only generated if the set of members to include is not empty.
 - Instance & class closures are added to the execution scope chain of member functions just before that function's own local scope.
 - The instance or class closure added to a called member function is provided by the target instance.
 - If the instance or class closure and the called member function do not share the same closure signature, the closure is not added to the scope chain.
 - A Proxy is incapable of having an instance or class closure of its own. All operations against a Proxy involving instance or class closure access are immediately forwarded to the Proxy target. 
 
-## Instance Closure Definitions
+## Private Initializers
 
-- Instance closure definitions are internal templates used to construct instance closures when `new` is used on a constructor posessing one.
-- Instance closure definitions are created during the evaluation of a class definition and attached to the class constructor.
-- Instance closure definitions are only generated if the set of members to include is not empty.
+- Private initializers are internal functions used to construct and populate instance closures  when `new` is used on a constructor posessing one.
+- Private initializers are created during the evaluation of a class definition and attached to the class prototype.
+- Private initializers are only generated if the set of instance and private data members is not empty.
 
-## Instance Variables
+## Private Data Members
 
-- Instance variables provide per-instance state that is only accessible to code that is defined within the body of a class definition.
-- Instance variables are not object properties and have minimal semantic overlap with properties. They do not have attributes. They are not accessible via prototype lookup. They generally<sup>1</sup> may not be dynamically added after their construction is completed. They may not be deleted. We think it is very important that JS programmer develop a conceptual model of objects that does not confuse or conflate instance variables and own properties.
-- Instance variables are declared via a distinct class body element (a `let` definition), and accessed via a distinct access operator (`::`) in order to conceptually distance them from the concept of object properties.
-- Instance variables can have initializers. The value of an initializer is statically determined at the time the class definition is evaluated. To initialize an instance variable to an instance-specific value, the constructor must be used. This should be no different from what ES developers are already accustomed to doing.
-- Instance variables can hold functions. If the function is an arrow function, the function will inherit the instance object that the instance closure is attached to as its default context.
-- Instance variables can be declared static using the `static` keyword after the `let` keyword. Static instance variables are collectively placed in a single class closure that is attached to the constructor function.
-- Instance variables are not visible to any existing reflection mechanisms.
-- Instance variable accesses are not trapped by ECMAScript Proxies.
-- `let` is repurposed to declare instance variables because its semantic conceptually limits the declaration to within the `{}` of the class definition.
-- The `let` declarations of a class definition collective and statically defined the "shape" of the instance closure definition introduced by that class definition. This "shape" can also be conceptualized as a group consisting of all the instance variables defined by a specific class definition.
-- When code attempts to access an instance variable of an object the access semantics must verify that the object state actually includes the instance variable group for that object. One way for an implementation to identify an instance variable group is by assigning a unique "brand" to each group and check for that brand on each instance variable access. This can be easily optimized with local flow analysis, since all instance variables in a group share the same brand, only the first access in a method must be checked.
-- A subclass that declares instance variables adds an additional instance variable group to the object returned from its `super` constructor call. The code in the subclass body only has visibility to the instance variables it defines.
+- Private data members provide per-instance state that is only accessible to code that is defined within the body of a class definition.
+- Private data members are not accessible via prototype lookup. They generally<sup>1</sup> may not be dynamically added after their construction is completed. They may not be deleted.
+- Private data members are declared via a distinct class body element (a `let` definition), and accessed via either a lexically scoped name to align them more closely with the concept of closure variables.
+- Private data members can also be accessed via a distinct access operator (`::`) in order to ensure they are properly distanced from public object properties.
+- Private data members can have initializers. The value of an initializer is determined at the time of execution of the private initializer function. As such, all initializations are instance specific.
+- Private data members can hold functions. If the function is an arrow function, the function will be bound to the instance object that the instance closure is attached.
+- Private data members are not visible to any existing reflection mechanisms.
+- Private data member access cannot be trapped by ECMAScript Proxies.
+- `let` is repurposed to declare instance variables because its semantic conceptually limits the declaration to within the outermost `{}` of the class definition.
+- The `let` declarations of a class definition not followed by `static`, as well as the `inst` declarations collectively and statically defined the body of the private initializer function introduced by that class definition.
+- Immediately before the execution of a member function, the function is checked for the presence of a class-signature. If found, the context object is checked for the presence of a property with that name. If there is no context object, an error is thrown. If the property is found not, an error is thrown. Otherwise, the corresponding object is used as a `with` context. If no signature is found on the function, execution continues as normal.
+- When code attempts to access a private data member of an object other than `this` via operator `::`, the object is checked for a property matching the class signature of the current execution context. An error is thrown if the property is not found. Otherwise, a normal property lookup occurs between the object in the found property and the righ-hand side parameter.
+- A subclass that declares private data members adds an additional instance-closure to the object returned from its `super` constructor call. The member functions of a class can only access the instance-closure its private initializer added.
 
-## Instance Constants
+## Private Constant Data Members
 
-- Instance constants are declared via a distinct class body element (a `const` definition), and accessed via a distinct access operator (`::`) in order to conceptually distance them from the concept of object properties.
-- Instance constants must have an initializer as their values cannot be changed by any code within the class.
-- Beyond the first 2 points, everything that applies to an instance variable, also applies to an instance constant.
+- Private constant data members are declared via a distinct class body element (a `const` definition).
+- Private constant data members must have an initializer as their values cannot be changed by any code.
+- Beyond the first 2 points, everything that applies to a private data member, also applies to a private constant data member.
 
-<sup>1</sup>Kevin's apparatus is a way to use class definitions to add a group of instance variables to an already constructed object:
+## Class-Private Constant and Non-constant Data Members
+
+- Class-private data members are declared via the `static` keyword placed immediately after the `let` or `const` token.
+- Class-private data members are added to the class-closure of the constructor during `class` evaluation.
+- If there are no class-private data members, there will be no class-closure.
+- The initializer of a class-private data member is resolved at the time of `class` evaluation.
+- Beyond the first 4 points, everything that applies to private data members and private constant data members also applies to their class-private equivalents.
+
+## Public Data Members
+
+- Public data members are declared via a distinct class body element (a `prop` definition). This is to prevent ASI issues due to combinations of destructuring assignment and calculated property names.
+- Public data members are properties of the prototype.
+- Public data members may not be initialized with a function expression in the class definition.
+- The names of all non-Symbol public data members will be available in the lexical scope of all non-static member functions.
+- The initializer of a public data member is resolved at the time of `class` evaluation.
+
+## Public Instance Data Members
+
+- Public instance data members are declared via a distinct class body element (an `inst` definition). This is to prevent ASI hazard issues as with `prop` as well as to make clear the destination of this property.
+- Public instance data members are added to the private initializer body and applied to instance object on `class` instantiation.
+- Public instance data members initialized using operator `=` will use a `this.prop = val` assignment in the private initializer.
+- Public instance data members initialized using operator `:=` will use `Object.defineProperty` on the instance object in the private initializer.
+- Public instance data members must be initialized within the class definition.
+- The initializer of a public instance data member is resolved during the execution of the private initializer.
+
+## Class-Public Data Members
+
+- Class-public data members are declared via a distinct class body element (a `static` definition).
+- Class-public data members are properties of the constructor
+- The names of all class-public data members will be available in the lexical scope of all static member functions.
+- Beyond these 3 points, all that applies to public data members also applies to class-public data members.
+
+
+<sup>1</sup>Kevin's apparatus is a way to use class definitions to add an instance-closure to an already constructed object:
 
 ```js
 function IdentityConstructor(o) {
