@@ -33,7 +33,7 @@ class Counter extends HTMLElement {
 window.customElements.define('num-counter', Counter);
 ```
 
-## 1. Instance Variables
+## 1. Private Data
 
 As the first step in our refactoring process, we will update the class definition so that internal state is stored in an *private data member*. We add a private data member to the class using the `let` keyword and update references to this value via direct access or using the "scope access operator" `::`.
 
@@ -68,7 +68,7 @@ class Counter extends HTMLElement {
 window.customElements.define('num-counter', Counter);
 ```
 
-## 2. Internal Methods
+## 2. Private Methods
 
 Finally, we will convert our internal helper methods into private data members and assign the function to them using arrow function notation. This saves us from needing to bind the function to the current instance. Since `window.requestAnimationFrame` is called whenever `xValue` is incremented, we can convert our getter/setter pair into a private member function.
 
