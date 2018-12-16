@@ -3,22 +3,29 @@
   <emu-grammar>
 
     ClassElement[Yield, Await] :
-      <ins>InstanceNonPropertyMemberDeclaration[?Yield, ?Await]</ins>
+      <ins>PrivateMemberDeclaration[?Yield, ?Await]</ins>
       <ins>DataPropertyDeclaration[?Yield, ?Await]</ins>
       MethodDefinition[?Yield, ?Await]
       `static` MethodDefinition[?Yield, ?Await]
       `;`
 
-    InstanceNonPropertyMemberDeclaration[Yield, Await] :
+    PrivateMemberDeclaration[Yield, Await] :
       LetOrConst BindingList[?Yield, ?Await] `;`
       LetOrConst `static` BindingList[?Yield, ?Await] `;`
 
     DataPropertyDeclaration[Yield, Await] :
-      DataPropertyDefinition
       `static` DataPropertyDefinition
+      `prop` DataPropertyDefinition
+      `inst` InstancePropertyDefinition
 
     DataPropertyDefinition[Yield] :
-      PropertyName[?Yield] Initializer[?In, ?Yield]opt ';'
+      PropertyName[?Yield, ?Await] Initializer[?In, ?Yield, ?Await]opt ';'
+
+    InstancePropertyDefinition[Yield] :
+      PropertyName[?Yield, ?Await] DefiningInitializer[?In, ?Yield, ?Await]opt ';'
+
+    DefiningInitializer[In, Yield, Await] :
+      `:=` AssignmentExpression[?In, ?Yield, ?Await]
 
     MemberExpression[Yield, Await] :
       PrimaryExpression[?Yield, ?Await]
