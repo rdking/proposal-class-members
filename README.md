@@ -43,7 +43,7 @@ class X {
     x = v;
   }
   print() {
-    console.log(`x = ${v}`);
+    console.log(`x = ${x}`);
   }
 }
 ```
@@ -51,8 +51,8 @@ class X {
 ```js
 var a = new X(2);
 var b = new X(3);
-a.print(); //2;
-b.print(); //3;
+a.print(); //"x = 2"
+b.print(); //"x = 3"
 ```
 because each instance gets it's own closure.
 
