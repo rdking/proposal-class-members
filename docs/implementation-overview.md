@@ -1,28 +1,30 @@
 # Implementation Overview
 
-This proposal borrows the concept of private symbols, as proposed [here](https://github.com/zenparsing/proposal-private-symbols), but there are a few differences. Private symbols will not be directly accessible to user-land code at all. `Object.assign` and operator `...` will not be affected by the private symbol implementation, as they only affect enumerable keys. `Object.seal` will not be affected by the private symbol implementation, as the private container is sealed immediately after initialization. `Object.freeze` will not be affected by the private symbol implementation, as it doesn't currently affect accessor properties, which remain the only "values" exposed on the object that may still change value after freezing.
+This proposal borrows the concept of closures with 2 major differences:
+* they're attached to objects (the instances)
+* functions not created in them have access to them (the member functions)
+* sibling instances have access to them (via `::`)
 
-There have been many attempts to create a form of data privacy, but all save for private-symbols have failed to create privacy in a way that preserves the functionality of Proxy in the presence of private data. However, private-symbols introduces limitations of its own. Due to the fact that private symbols are themselves 1st class values in ES, developers would have the ability to monkey-patch code containing private symbols and expose the corresponding properties to the public. This is a violation of hard private, but not one that is insurmountable. 
+These differences allow these "instance closures" to accomodate the requirements of a class. Since anything that can be placed on the instance can also be placed on the class itself, the static equivalent of the "instance closure" (the "class closure") also contains these differences.
 
-With this proposal, private symbols are a mere implementation detail that provides the ability to create properties who's name is unknown and unretrievable on any object. Using this capability, the engine will be able to hide data on an object without fear that a developer can manipulate that data through any means other than provided for in this proposal.
+This approach has the additional advantage of leaving open the possibility of an "ancestor closure" to facilitate so-called "protected" members. While the name of such members is unfortunate, they are none-the-less a very useful and anticipated feature that must eventually follow any reasonable implementation of full encapsulation. However, this is a subject for a follow-up proposal.
 
 ## New products of `class`
 Both the constructor, and prototype can have additional properties as result of this proposal:
 
 #### Constructor -
-* Symbol.private("Signature") - This property contains a private symbol value used to passively perform basic brand checking. The value of this symbol is the key name for the private container created by the private initializer. This is the "class signature".
-* [Constructor[Symbol.private("Signature")]] - This property contains a private container object created by the private initializer of a constructor. It holds data properties and methods that were declared private and static in the `class` definition. This is the "class-closure".
+* Every constructor of a class containing `let static` and/or `const static` declarations will carry a "class closure" which is accessible from every lexically declared method in the class, regardless of whether or not the method is static. For methods that are not static, the "class closure" can be accessed via the `::` operator. If shorthand notation (`x` means `this::x`) is supported, then shorthand for bindings in the "class closure" will be superceeded by bindings in the "instance closure" for non-static methods.
 
-#### Prototype -
-* Symbol.private("Initializer") - This property is a function, similar to the constructor itself, and run by the constructor as the first instruction (following "super", if it exists). It's purpose is to create the instance-closure and initialize the properties of that container to the specified values. The key name for this private container is the class signature. This function also initializes any `inst` properties. This is the "private initializer".
+#### Instances - 
+* Each instance of a class containing `let` and/or `const` declarations (not including their `static` equivalents) will carry an "instance closure" which is accessible from every lexically declared method in the class, regardless of whether or not the method is static. For methods that are static, the "instance closure" can be accessed via the `::` operator. If shorthand notation is supported, then shorthand bindings in the "instance closure" will only be available to the non-static class methods.
+* Instances will carry one such "instance closure" for every class constructor used to initialize it, as appropriate.
 
-#### Additionally, the following property can appear on instances:
-* [Constructor[Symbol.private("Signature")]] - This property contains a private container object created by the private initializer of a constructor. It holds data properties and methods that were declared private and static in the `class` definition. This is the "instance-closure".
-
+#### Functions and Closures
+* Every class will have an internal class signature. This signature is applied to all lexically defined methods and each class/instance closure. This signature is used to determine which class/instance closures will be attached to a class method at runtime. It is also used as part of the access check when using operator `::`. Only the closures in the signature list of the current function will be used to locate the targeted member.
 
 ## Private Data Members
 
-A private data member definition defines one or more properties that exist in one of the private containers on an instance of the `class`. Within a `class` body, private data members are accessed via the `::` operator. Private data members are declared with the `let` keyword.
+A private data member declaration defines one or more lexical variables that exist in one of the closures on an instance of the `class`. Within a `class` body, private data members are accessed via the `::` operator. Private data members are declared with the `let` keyword.
 
 ```js
 class Point {
@@ -41,7 +43,7 @@ class Point {
 
 Attempting to access a private data member using `::` produces a runtime `ReferenceError` if the class signature of the current execution context does not exist as a property of the instance object that is the left operand. In other words, a reference to a private data member only works when the object has been initialized by the constructor of the class that defines the function making the access.
 
-Private data member definitions may have initializers. The absense of an initializer is equivalent to being initialized with `undefined`. The value of an private data member's initializer is determined at the time an instance is initialized.
+Private data member definitions may have initializers. The absense of an initializer is equivalent to being initialized with `undefined`. The value of a private data member's initializer is determined at the time an instance is initialized.
 
 ## Private Constant Data Members
 
@@ -59,24 +61,30 @@ class A {
 }
 ```
 
-Class-private data members are placed in a class-closure on the constructor function. Such members can be accessed via the `::` operator with the constructor function itself as the target object.
+Class-private data members are placed in a class-closure on the constructor function. Such members can be accessed via the `::` operator with the constructor function itself as the target object. Initializers for class-private data members are resolved during class evaluation.
 
 ## Private Member Functions
 
-No direct syntax support will be available for creating private member functions. However, since a private data member can hold anything, using a function expression as an initializer creates a private member function. If the function expression is an arrow function, it is automatically bound to the context object of the instance-closure. Otherwise, the function will operate in accordance with the existing rules for all nested functions declared using the function keyword.
+No direct syntax support will be available for creating private member functions. However, since a private data member can hold anything, using a function expression as an initializer creates a private member function. If the function expression is an arrow function, it is automatically bound to the context object of the instance-closure. Otherwise, the function will operate in accordance with the existing rules for all nested functions declared using the function keyword. Such functions, as lexical members, also receive appropriate class signatures.
 
 ## Public Data Members
 
-A public data member is declared in almost the same fashion as a private data member, but with either `prop`, `inst`, or `static` as the prefix. Public data members declared with `prop` are placed on the prototype, while those declared with `inst` are placed on instance objects, and those declared with `static` are placed on the constructor. Members defined with either `prop` or `static` are initialized during the evaluation of the `class` definition while those defined with `inst` are initialized during the creation of an instance object. It is not valid to use `static`, `inst`, or `prop` in the same declaration as all 3 are placement modifiers targeting different objects.
+A public data member is declared in almost the same fashion as a private data member, but with either `prop`, or `prop static` as the prefix. Public data members declared with `prop` are placed on the prototype, while those declared with `prop static` are placed on the constructor. If shortcut notation is allowed, public function and data members also become bindings within the closures.
 
 ```js
 class A {
   prop prop3 = 42;          //Lives on the prototype
-  static prop4;             //Lives on the constructor
-  inst prop5;               //Lives on an instance
-  ...
+  prop static prop4;        //Lives on the constructor
+  
+  foo() { console.log(`prop3 = ${prop3}`); }
 }
 ```
+
+Members defined with `prop` are initialized twice:
+* once during the evaluation of the `class` definition, and
+* once during class instantiation while those defined with `inst` are initialized,
+
+while those defined with `prop static` are only initialized during class evaluation. This double initialization of public data members ensures that the prototype remains the primary definition of what is publicly part of the object, while allowing each instance to maintain a unique copy of any objects that may exist on the prototype. 
 
 ## `class` Products
 
@@ -85,12 +93,12 @@ Beyond the constructor and the prototype, the `class` keyword will, depending on
 * If private data members exist, `class` will produce at minimum a class signature applied to all functions of the class, including the constructor.
 * If there are any class-private data members, the `class` keyword will also produce a class-closure on the constructor.
 * If there are any private data members that are not class-private:
-    * The `class` keyword will produce a private initializer function attached to the prototype.
+    * The `class` keyword will produce a private initializer function.
     * The private initializer function will produce a instance-closure on all instances.
 
 Upon instantiation of the `class`, immediately following the return of the new instance from the base class, the private initializer will be executed.
 
-When a function that accesses the private members of the context object is called, the context object is cheked to see if it has a property whose name matches the class signature of that function prior to the execution of the function. The same test is performed for each access of a private member of an object that is not the current context. These 2 checks guarantee that no access to private members can be performed from an inappropriate execution context, or using an inappropriate context object. This is _brand-checking_ as defined by this proposal.
+When a function that accesses a private member of the context object is called, a map of accessible closures is created by matching the signatures of the context's closures to the signature list of the function. A similar map is generated for each object used as the target of operator `::` on first access. All member bindings are accessed via these maps. These maps guarantee that no access to private members can be performed from an inappropriate execution context, or using an inappropriate context object. This is _brand-checking_ as defined by this proposal.
 
 ## Additional Notes
 

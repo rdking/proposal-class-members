@@ -9,7 +9,7 @@ This is a new proposal for extending ECMAScript's class definition syntax and se
 
 Elements of a `class` definition should only appear on direct products of the `class` keyword. This means that if it's not on the prototype, on the constructor, or (as of this proposal) in the instance-closure, it's not a part of the `class` definition, and therefore, not a member of the class. A class "member" is therefore anything defined or produced within the lexical scope of the `class` definition and represented in or on one of the products of `class`.
 
-## Goals
+## Primary Goals
 
 The max-min class design, as implemented in ECMAScript 2015, has successfully balanced the need for a declarative class syntax with the desire to keep semantics lightweight and expressible in terms of the existing JavaScript object model. Although there are currently several proposals for extending class definitions with additional features, we believe that existing class definitions are only missing the following fundamental capabilities:
 
@@ -17,13 +17,20 @@ The max-min class design, as implemented in ECMAScript 2015, has successfully ba
 2. **Secure method decomposition.** There should be a way for the user to refactor common code into methods that are not accessible outside of the class definition.
 3. **Customized data initialization.** There should be a way to initialize the class prototype, for instance by adding arbitrary data properties, within the class definition.
 
+### Additional Goal
+Due in no small part to the lack of support for data in ES6 classes out-of-the-box, and also to both the prototype foot-gun, and the "best practice" that arose as a result, one additional capability must be added:
+
+4. **Instance data initialization.** There should be a way for the initialization code assigned inside the class definition to be executed against the instance, setting an appropriate value for each non-public function, non-public accessor property.
+
+While the values visible from the prototype take on an advisory role, it is the resut of running the initialization code (the source code of each initialization value) on each instance that will be the value available in instances. This opens the possibility that a property of each instance may be iniitalized to a unique value. It also cleanly avoids issues with the prototype foot-gun.
+
 ## Mental Model
 
-The only thing in ES that is capable of providing the 3 goals above is a closure. However, it is virtually impossible to use a closure to provide for per-instance state without the use of one or more WeakMaps. This proposal offers an approach to applying the closure concept on class definitions to contain private data.
+The only thing in ES that is capable of providing the primary goals above is a closure. However, it is virtually impossible to use a closure to provide for per-instance state without the use of one or more WeakMaps. This proposal offers an approach to applying the closure concept on class definitions to contain private data.
 
 Normally, when a function returns another function defined during the run of the former, the entire execution environment of the former function is retained as a "closure" on the latter. With this proposal, a `class` definition behaves in a similar fashion to a function. Where a function closure is formed by running a function that returns 1 or more functions, an instance-closure is formed by instantiating a `class`. Likewise, a class-closure is created by evaluating a `class` definition.
 
-As a result, the member functions of the `class` instance all carry a closure associated with that instance and class. The instance-closure is associated with all non-static member functions at the time of instantiation. The class-closure is associated with all non-static member functions at the time of `class` evaluation. Unlike with normal closures, all member functions of a given `class` have access to all instance-closures of and the class-closure for the given `class`.
+As a result, the member functions of the `class` instance all carry a closure associated with that instance and class. The instance-closure is associated with all non-static member functions at the time of instantiation. The class-closure is associated with all static member functions at the time of `class` evaluation and all non-static member functions at the time of instantiation. Unlike with normal closures, all member functions of a given `class` have access to all instance-closures and the class-closure for the given `class`.
 
 So basically, we've been able to do this:
 ```js
@@ -64,15 +71,7 @@ Just as the closure of a function provides for lexically scoped variables, the p
     * All constants must be initialized.
 * To declare a public data property, use `prop`.
     * This is a prototype data property. Beware the object value foot-gun.
-* To declare a public instance data property, use `inst`.
-    * This is an instance-specific value. Beware clobbering inheritance.
-    * All public instance data properties must be initialized.
-    * It is suggested that if at all, this feature be used sparingly, and with great care.
-    * It is strongly suggested that such values be defined in the constructor.
 * All data properties can be initialized using operator `=`.
-* A new operator (`:=`) is defined for use with `inst` properties.
-    * This new operator forces the property to be defined on the instance.
-    * Use of operator `=` with `inst` attempts to set the initializer on the instance.
 * There is no unique form for defining private member functions.
     * Private member functions are created by declaring a private data member initialized with a function defined within the lexical scope of the class.
 * The initializer of all private data members and public instance data members are resolved at the time of `class` instantiation.
@@ -90,9 +89,7 @@ class X {
   let d = function() {};  //Private member function, unbound
   const e = 0;            //Private constant member, initialize to 0
   prop f = Math.E;        //Prototype-based public data property
-  inst g = Math.PI;       //Instance-based public data property, set semantics
-  inst h := Math.random();//Instance-based public data property, define semantics
-  static i = Math.sqrt(2);//Static public data property
+  static g = Math.sqrt(2);//Static public data property
 
   constructor(a, f) {
     this::a = a;          //If your private member variable gets shadowed,
@@ -122,7 +119,7 @@ class X {
 
   let static printStatic = () => {
     console.log(`X::b = ${b}`);
-    console.log(`X.i = ${i}`);
+    console.log(`X.g = ${g}`);
   }
 }
 ```
@@ -132,13 +129,6 @@ const X = (function() {
   let pvt = new WeakMap();
 
   function privateInit() {
-    this.g = Math.PI;
-    Object.defineProperty(this, "h", {
-      enumerable: true,
-      writable: true,
-      configurable: true,
-      value: Math.random()
-    });
     return Object.seal(Object.create(null, {
       a: {
         writable: true,
@@ -197,7 +187,7 @@ const X = (function() {
 
     let static printStatic = () => {
       console.log(`X::b = ${getPrivateValue(this, 'b')}`);
-      console.log(`X.i = ${this.i})`);
+      console.log(`X.g = ${this.g})`);
     }
   }
 
